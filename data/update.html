@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timonel Uploader</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f0f0f0;
+    }
+
+    .container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      width: 500px;
+      text-align: center;
+    }
+
+    .drop-zone {
+      border: 2px dashed #007bff;
+      padding: 20px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      background-color: #f9f9f9;
+    }
+
+    .drop-zone.hover {
+      background-color: #e6f7ff;
+    }
+
+    .file-info {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .progress-container {
+      margin-top: 20px;
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 10px;
+      background-color: #007bff;
+    }
+
+    .button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .button:disabled {
+      background-color: #d6d6d6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Timonel I2C Uploader <input type="button" id="ws_connect" class="power_off" value="Off" onclick="ws_reconnect(this);"></input></h1>
+    <div class="drop-zone" id="dropZone">
+      Drop a .hex file or click to select one.
+    </div>
+    <input type="file" id="fileInput" accept=".hex" style="display: none;">
+    <div class="file-info" id="fileInfo"></div>
+    <div class="file-info" id="fileInfo2"></div>
+    <hr>
+    <div id="addrSelectContainer">
+      <select name="device" id="addrSelect" size="6">
+        <option value="">--Please choose a device--</option>
+        <option value="rescan">rescan bus</option>
+      </select>
+      <button class="button" id="eraseButton" disabled="true">Erase Flash</button>
+      <button class="button" id="flashButton" disabled="true">Flash</button>
+      <button class="button" id="appButton" disabled="true">start App</button>
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div>
+      <span id="statusTxt">Status:</span>
+    </div>
+  </div>
+  
+  <script>
+    let web_socket;
+    let ws_timer;
+    let file = null;
+    let fileOk = false;
+    const currentLocation = window.location.pathname;
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileInfo2 = document.getElementById('fileInfo2');
+    const eraseButton = document.getElementById('eraseButton');
+    const flashButton = document.getElementById('flashButton');
+    const appButton = document.getElementById('appButton');
+    const progressBar = document.getElementById('progressBar');
+    const addrSelect = document.getElementById('addrSelect');
+    const statusTxt = document.getElementById('statusTxt');
+    
+    function mark_ws_disconnect() {
+      document.getElementById("ws_connect").value = "Off";
+    }
+
+    function startWebsocket() {
+      web_socket = new WebSocket(`ws://${location.host}${currentLocation}/ws`);
+
+      web_socket.onopen = function (event) {
+        web_socket.send("Ping");
+        send_ws('rescan');
+      };
+
+      web_socket.onclose = function (event) {
+        console.log("ws closed");
+        console.log(event);
+        document.getElementById("ws_connect").value = "Off";
+        web_socket = null;
+        setTimeout(startWebsocket, 3000);
+      }
+
+      web_socket.onerror = function (event) {
+        console.log("ws error");
+        console.log(event);
+      }
+
+      web_socket.onmessage = function (e) {
+        console.log(e.data);
+        if(e.data == "Pong") {
+          document.getElementById("ws_connect").value = "On";
+          if(ws_timer) {
+            clearTimeout(ws_timer);
+          }
+          ws_timer = setTimeout(mark_ws_disconnect, 5000);
+          return;
+        } else if(e.data == "file ok") {
+          fileOk = true;
+          statusTxt.innerHTML="file uploaded ok";
+        } else if(e.data == "file bad") {
+          fileOk = false;
+          flashButton.disabled = true;
+          eraseButton.disabled = true;
+          statusTxt.innerHTML="error decoding file";
+        } else if(e.data.startsWith("fileinfo=")) {
+          fileInfo2.innerHTML = e.data.split('=')[1];
+        } else if(e.data.startsWith('progress=')) {
+          var p = parseInt(e.data.split('=')[1]);
+          console.log(p);
+          progressBar.style.width = p + '%';
+        } else if(e.data.startsWith('devices=')) {
+          const sub = e.data.split('=')[1];
+          if(sub == "empty") {
+            while (addrSelect.options.length > 2) {
+              addrSelect.remove(addrSelect.options.length - 1);
+            }
+            addrSelect.querySelectorAll('option')[0].selected = 'selected';
+            flashButton.disabled = true;
+            eraseButton.disabled = true;
+            appButton.disabled = true;
+          } else {
+            var option = document.createElement("option");
+            option.text = sub;
+            option.value = sub.split("-")[0];
+            addrSelect.add(option);
+          }
+        } else {
+          statusTxt.innerHTML = e.data;
+        }
+      }
+      init();
+    }
+
+    function ws_reconnect() {
+      web_socket = null;
+      startWebsocket();
+    }
+
+    function send_ws(text) {
+      if((web_socket !== null) && (web_socket.readyState === WebSocket.OPEN)) {
+        web_socket.send(text);
+      }  
+    }
+
+    function keepalive() {
+      send_ws("Ping");
+    }
+
+    startWebsocket();
+
+    // Drag & Drop Event
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('hover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('hover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('hover');
+      const droppedFile = e.dataTransfer.files[0];
+      handleFile(droppedFile);
+    });
+
+    // Click to open file selection
+    dropZone.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    // Handle file selection
+    fileInput.addEventListener('change', (e) => {
+      const selectedFile = e.target.files[0];
+      handleFile(selectedFile);
+    });
+
+    // Handle the file
+    function handleFile(selectedFile) {
+      if (selectedFile && selectedFile.name.endsWith('.hex')) {
+        file = selectedFile;
+        fileInfo.textContent = `Filename: ${file.name} | Size: ${file.size} Byte (binary approx. ${Math.round(file.size/45*16)} Byte)`;
+        uploadFile();
+      } else {
+        alert('Please only .hex files!');
+        fileOk = false;
+        file = null;
+        fileInfo.textContent = '';
+      }
+    }
+
+    // Upload
+    function uploadFile() {
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', currentLocation + '', true);
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const progress = (e.loaded / e.total) * 100;
+          progressBar.style.width = progress + '%';
+        }
+      });
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            //alert('Upload done!');
+            if(addrSelect.value.startsWith("0x")) {
+              flashButton.disabled = false;
+            }
+          } else {
+            alert('Upload failed!');
+          }
+        }
+      };
+
+      xhr.send(formData);
+    }
+
+    eraseButton.addEventListener('click', () => {
+      console.log("erase");
+      send_ws('erase:' + addrSelect.value);
+    });
+
+    flashButton.addEventListener('click', () => {
+      console.log("flash");
+      send_ws('flash:' + addrSelect.value);
+    });
+
+    appButton.addEventListener('click', () => {
+      console.log("start app");
+      send_ws('startApp:' + addrSelect.value);
+      const timeoutId = setTimeout(() => {
+        send_ws('rescan');
+      }, 1500);
+    });
+
+    addrSelect.addEventListener('change', (e) => {
+      var el = e.target;
+      console.log("select " + el.value);
+      flashButton.disabled = true;
+      eraseButton.disabled = true;
+      appButton.disabled = true;
+      if(el.value == "rescan") {
+        el.querySelectorAll('option')[0].selected = 'selected';
+        send_ws('rescan');
+      } else if(el.value.startsWith("0x")) {
+        var txt = el.options[addrSelect.selectedIndex].text;
+        if(txt.endsWith("T")) {
+          appButton.innerHTML = "start App";
+          eraseButton.disabled = false;
+        } else {
+          appButton.innerHTML = "start Timonel";
+        }
+        appButton.disabled = false;
+        if(txt.endsWith("T") && fileOk) {
+          flashButton.disabled = false;
+        }
+      }
+    });
+
+    window.setInterval(keepalive, 2000);
+
+    function init() {
+      fileOk = false;
+      flashButton.disabled = true;
+      eraseButton.disabled = true;
+      appButton.disabled = true;
+      while (addrSelect.options.length > 2) {
+        addrSelect.remove(addrSelect.options.length - 1);
+      }
+      addrSelect.querySelectorAll('option')[0].selected = 'selected';
+      statusTxt.innerHTML="connect";
+      progressBar.style.width = '0%';
+      fileInfo.textContent = '';
+      fileInfo2.textContent = '';
+      //const timeoutId = setTimeout(() => {
+      //  send_ws('rescan');
+      //}, 500);
+    }
+  </script>
+</body>
+</html>

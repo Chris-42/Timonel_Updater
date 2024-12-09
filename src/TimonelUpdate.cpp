@@ -4,7 +4,9 @@
 //#include "helper.h"
 #include "html.h"
 
-
+#ifndef MUX_ADDRESS
+ #define MUX_ADDRESS 0x00
+#endif
 
 TimonelUpdater::TimonelUpdater() {
 }
@@ -210,10 +212,10 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
     delete(t);
   }
   _timonel.clear();
-  for(uint8_t i=0;i<128;i++) {
+  for(uint8_t i = 1; i < 128; ++i) {
     _i2c->beginTransmission(i);
     uint8_t ec = _i2c->endTransmission(true);
-    if(ec == 0){
+    if(ec == 0 && (i != MUX_ADDRESS)){
       Timonel *micro = new Timonel(i, *_i2c);
       if(micro) {
         if(!micro->Detected()) {  

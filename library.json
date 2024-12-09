@@ -1,6 +1,6 @@
 {
   "name": "Timonel Updater",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Library to add update capability for I2C Timonel micrcontroller",
   "keywords": "I2C, AVR Bootloader, Uploader",
   "repository":

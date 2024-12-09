@@ -1,7 +1,7 @@
 #include "TimonelUpdate.h"
-#include <LittleFS.h>
+//#include <LittleFS.h>
 #include <esp_task_wdt.h>
-#include "helper.h"
+//#include "helper.h"
 #include "html.h"
 
 
@@ -22,10 +22,10 @@ void TimonelUpdater::begin(WEBSERVER* server, String path, TwoWire* i2c) {
 
   _ws->onEvent([&](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
     if(type == WS_EVT_CONNECT) {
-      Serialprintln("Websocket client connection received");
+      //Serial.println("Websocket client connection received");
       client->text("init");
     } else if(type == WS_EVT_DISCONNECT) {
-      Serialprintln("Client disconnected");
+      //Serial.println("Client disconnected");
     } else if(type == WS_EVT_DATA) {
       char str[len + 1];
       str[len] = '\0';
@@ -147,7 +147,7 @@ bool TimonelUpdater::parseHexBuffer() {
     strncpy(q, p, 43);
     int n;
     if((n = sscanf (q, ":%2x%4x%2x%s", &Bytes, &Addr, &Type, &Data)) != 4) {
-      Serialprintln("hex decode failed");
+      Serial.println("hex decode failed");
       return false;
     }
     if(Type == 0) {
@@ -167,21 +167,21 @@ bool TimonelUpdater::parseHexBuffer() {
   }
   _binBuffer = (uint8_t*)malloc(_binSize);
   if(!_binBuffer) {
-    Serialprintln("malloc failed");
+    Serial.println("malloc failed");
     return false;
   }
   p = strchr(_hexBuffer, ':');
   while(p) {
     strncpy(q, p, 43);
     if(sscanf (q, ":%2x%4x%2x%s", &Bytes, &Addr, &Type, &Data) != 4) {
-      Serialprintln("hex decode2 failed");
+      Serial.println("hex decode2 failed");
       return false;
     }
     if(Type == 0) {
       for(int i = 0; i < Bytes; ++i) {
         uint8_t b;
         if(sscanf(&Data[i*2], "%2x", &b) != 1) {
-          Serialprintln("byte parse failed");
+          Serial.println("byte parse failed");
           return 0;
         }
         _binBuffer[(Addr + i) - _startAddress] = b;
@@ -200,12 +200,12 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
       _i2cMux->setMux(0);
     } else {
       if(!_i2cMux->setMuxChannel(busId)) {
-        Serialprintln("unable to set mux");
+        Serial.println("unable to set mux");
       }
     }
   }
   #endif
-  Serialprintf("Scanning I2C Addresses Channel %d\r\n", busId);
+  //Serial.printf("Scanning I2C Addresses Channel %d\r\n", busId);
   for(auto t : _timonel) {
     delete(t);
   }
@@ -221,7 +221,7 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
         } else {
           Timonel::Status s = micro->GetStatus();
           _timonel.push_back(micro);
-          Serialprintf("detected %02X%c\r\n", i, s.signature);
+          //Serial.printf("detected %02X%c\r\n", i, s.signature);
         }
       }
     }
@@ -229,16 +229,16 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
   #ifdef HAS_I2C_MUX
   _i2cMux->free();
   #endif
-  Serialprintf("found %d Timonel Devices\r\n", _timonel.size());
+  //Serial.printf("found %d Timonel Devices\r\n", _timonel.size());
   return _timonel.size();
 }
 
 void TimonelUpdater::startApp(uint8_t twiId) {
-  Serialprintf("start App %02X\r\n", twiId);
+  Serial.//printf("start App %02X\r\n", twiId);
   for(auto t : _timonel) {
     if(t->GetTwiAddress() == twiId) {
       t->RunApplication();
-      Serialprintln(F("started Timo"));
+      //Serial.println(F("started Timo"));
       return;
     }
   }
@@ -251,23 +251,20 @@ static void callbackHelper(uint8_t progress) {
   if(progress < last_progress) {
     last_progress = progress - 5;
   }
-  Serialprintf("got progress %d\r\n", progress);
   if((progress > (last_progress + 5)) || (progress == 100)) {
     last_progress = progress;
-    Serialprintf("try send progress %d\r\n", progress);
     static_ws->textAll(String("progress=") + String(progress));
-    Serialprintf("send progress %d\r\n", progress);
   }
 }
 
 void TimonelUpdater::erase(uint8_t twiId) {
-  Serialprintf("erase %02X\r\n", twiId);
+  //Serial.printf("erase %02X\r\n", twiId);
   ("erasing flash");
   for(auto t : _timonel) {
     if(t->GetTwiAddress() == twiId) {
-      Serialprintln(F("clean flash"));
+      //Serial.println(F("clean flash"));
       t->DeleteApplication();
-      Serialprintln(F("clean done"));
+      //Serial.println(F("clean done"));
       break;
     }
   }
@@ -277,13 +274,6 @@ void TimonelUpdater::erase(uint8_t twiId) {
 void TimonelUpdater::flash(uint8_t twiId) {
   _activeTwiId = twiId;
   xTaskCreatePinnedToCore(&flashTask, "Flash", 4000, this, 5, &_flashTaskHandle, ARDUINO_RUNNING_CORE);
-  //while(_flashTaskHandle) {
-  //  vTaskDelay(1000 / portTICK_PERIOD_MS);
-  //  Serialprintln("\r\nT");
-  //  esp_task_wdt_reset();
-  //}
-  //flashTaskWorker();
-  Serialprintln("return from flash");
 }
 
 void TimonelUpdater::flashTask(void* data) {
@@ -294,10 +284,10 @@ void TimonelUpdater::flashTask(void* data) {
 }
 
 void TimonelUpdater::flashTaskWorker() {
-  Serialprintf("flash %02X\r\n", _activeTwiId);
+  //Serial.printf("flash %02X\r\n", _activeTwiId);
   _ws->textAll("flashing");
   if(!_binSize) {
-    Serialprintln(F("no binary"));
+    Serial.println(F("no binary"));
     _ws->textAll("file bad");
     return;
   }
@@ -307,9 +297,13 @@ void TimonelUpdater::flashTaskWorker() {
       t->setProgressCallback(callbackHelper);
       uint8_t ret = t->UploadApplication(_binBuffer, _binSize, _startAddress);
       t->setProgressCallback(nullptr);
-      Serialprintf(F("flashed Timo %d\r\n"), ret);
+      //Serial.printf(F("flashed Timo %d\r\n"), ret);
+      if(ret) {
+        _ws->textAll("flashing failed");
+      } else {
+        _ws->textAll("flashing done");
+      }
       break;
     }
   }
-  _ws->textAll("flashing done");
 }

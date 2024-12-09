@@ -1,0 +1,28 @@
+{
+  "name": "Timonel Updater",
+  "version": "0.2.0",
+  "description": "Library to add update capability for I2C Timonel micrcontroller",
+  "keywords": "I2C, AVR Bootloader, Uploader",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/username/hello-world.git"
+  },
+  "authors":
+  [
+    {
+      "name": "Christian Port",
+      "email": "devel@port-net.de",
+      "url": "",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "dependencies": {
+    "mathieucarbou/ESPAsyncWebServer": "^3.3.11",
+    "nb-twi-cmd": ">=0.7.1"
+  },
+  "frameworks": "Arduino",
+  "platforms": "esp32"
+}

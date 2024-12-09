@@ -234,7 +234,7 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
 }
 
 void TimonelUpdater::startApp(uint8_t twiId) {
-  Serial.//printf("start App %02X\r\n", twiId);
+  //Serial.printf("start App %02X\r\n", twiId);
   for(auto t : _timonel) {
     if(t->GetTwiAddress() == twiId) {
       t->RunApplication();

@@ -120,7 +120,7 @@ void TimonelUpdater::begin(WEBSERVER* server, String path, TwoWire* i2c) {
       if (final) { // if the final flag is set then this is the last frame of data
         _ws->textAll("parse hex");
         bool res = parseHexBuffer();
-        char str[32];
+        char str[36];
         sprintf(str, "fileinfo=size:%d, start:%04X\r\n", _binSize, _startAddress);
         _ws->textAll(str);
         if(res) {
@@ -215,7 +215,7 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
   for(uint8_t i = 1; i < 128; ++i) {
     _i2c->beginTransmission(i);
     uint8_t ec = _i2c->endTransmission(true);
-    if(ec == 0 && (i != MUX_ADDRESS)){
+    if(ec == 0 && (i != MUX_ADDRESS)) {
       Timonel *micro = new Timonel(i, *_i2c);
       if(micro) {
         if(!micro->Detected()) {  

@@ -201,11 +201,11 @@ uint8_t NbMicro::TwiCmdXmit(uint8_t twi_cmd_arr[], uint8_t cmd_size, uint8_t twi
     USE_SERIAL.printf_P("[%s] > Multi byte cmd: 0x%02X --> making actual TWI transmission ...\n\r", __func__, twi_cmd_arr[0]);
 #endif  // DEBUG_LEVEL
     // TWI command transmit
+    Wire.beginTransmission(addr_);
     for (int i = 0; i < cmd_size; i++) {
-        Wire.beginTransmission(addr_);
         Wire.write(twi_cmd_arr[i]);
-        Wire.endTransmission();
     }
+    Wire.endTransmission();
     // TWI command reply (one byte expected)
     if (reply_size == 0) {
         reply_size++;

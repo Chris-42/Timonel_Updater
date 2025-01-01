@@ -7,6 +7,15 @@
 
 #define WEBSERVER AsyncWebServer
 
+#ifndef I2C_MUTEX
+ #define I2C_MUTEX_LOCK
+ #define I2C_MUTEX_FREE
+#else
+ extern SemaphoreHandle_t I2C_MUTEX;
+ #define I2C_MUTEX_LOCK xSemaphoreTake(I2C_MUTEX, portMAX_DELAY);
+ #define I2C_MUTEX_FREE xSemaphoreGive(I2C_MUTEX);
+#endif
+
 class TimonelUpdater {
 public:
   struct task_data_t {

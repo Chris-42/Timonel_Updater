@@ -215,6 +215,7 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
   for(uint8_t i = 1; i < 128; ++i) {
     _i2c->beginTransmission(i);
     uint8_t ec = _i2c->endTransmission(true);
+    Serial.printf("T %d -> %d\r\n", i, ec);
     if(ec == 0 && (i != MUX_ADDRESS)) {
       Timonel *micro = new Timonel(i, *_i2c);
       if(micro) {
@@ -227,6 +228,7 @@ uint8_t TimonelUpdater::scanBus(int8_t busId) {
         }
       }
     }
+    esp_task_wdt_reset();
   }
   #ifdef HAS_I2C_MUX
   _i2cMux->free();
@@ -297,7 +299,9 @@ void TimonelUpdater::flashTaskWorker() {
     if(t->GetTwiAddress() == _activeTwiId) {
       static_ws = _ws;
       t->setProgressCallback(callbackHelper);
+      I2C_MUTEX_LOCK
       uint8_t ret = t->UploadApplication(_binBuffer, _binSize, _startAddress);
+      I2C_MUTEX_FREE
       t->setProgressCallback(nullptr);
       //Serial.printf(F("flashed Timo %d\r\n"), ret);
       if(ret) {
